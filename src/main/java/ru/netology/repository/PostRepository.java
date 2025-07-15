@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class PostRepository {
     private final Map<Long, Post> posts = new ConcurrentHashMap<>();
-    private final AtomicLong idCounter = new AtomicLong(1);
+    private final AtomicLong nextId = new AtomicLong(1);
 
     public List<Post> all() {
         return new ArrayList<>(posts.values());
@@ -20,12 +20,9 @@ public class PostRepository {
 
     public Post save(Post post) {
         if (post.getId() == 0) {
-            long id = idCounter.getAndIncrement();
-            post.setId(id);
-            posts.put(id, post);
-        } else {
-            posts.put(post.getId(), post);
+            post.setId(nextId.getAndIncrement());
         }
+        posts.put(post.getId(), post);
         return post;
     }
 
