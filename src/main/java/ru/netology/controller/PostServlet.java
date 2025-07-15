@@ -1,51 +1,64 @@
 package ru.netology.controller;
 
 import com.google.gson.Gson;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 import ru.netology.model.Post;
-import ru.netology.repository.PostRepository;
+import ru.netology.service.PostService;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.io.*;
+import java.io.IOException;
 
 @WebServlet("/api/posts/*")
 public class PostServlet extends HttpServlet {
-    private final PostRepository repository = new PostRepository();
+    private PostService service;
     private final Gson gson = new Gson();
+
+    @Configuration
+    @ComponentScan("ru.netology") // ищет бины по пакетам
+    static class AppConfig {
+    }
+
+    @Override
+    public void init() throws ServletException {
+        ApplicationContext context = new AnnotationConfigApplicationContext(AppConfig.class);
+        this.service = context.getBean(PostService.class);
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         String path = req.getPathInfo();
 
         if (path == null || path.equals("/")) {
-            writeJson(resp, repository.all());
+            writeJson(resp, service.all());
         } else {
             long id = parseId(path);
-            repository.getById(id)
-                    .ifPresentOrElse(
-                            post -> {
-                                try {
-                                    writeJson(resp, post);
-                                } catch (IOException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            },
-                            () -> resp.setStatus(HttpServletResponse.SC_NOT_FOUND));
+            Post post = service.getById(id);
+            if (post != null) {
+                writeJson(resp, post);
+            } else {
+                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                resp.getWriter().write("{\"error\": \"Post not found\"}");
+            }
         }
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         Post post = gson.fromJson(req.getReader(), Post.class);
-        Post saved = repository.save(post);
+        Post saved = service.save(post);
         writeJson(resp, saved);
     }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         long id = parseId(req.getPathInfo());
-        repository.removeById(id);
+        service.removeById(id);
+        resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }
 
     private void writeJson(HttpServletResponse resp, Object data) throws IOException {
